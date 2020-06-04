@@ -2,6 +2,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QApplication
 import sys
 import requests
+from requests import ConnectionError, ReadTimeout
 import threading
 import time
 import GUI_AirConditioner
@@ -151,34 +152,38 @@ class AirConditioner:
             }
             print("发送的心跳包为")
             print(heart)
-            r = requests.post("http://localhost:8080/api/heartbeat", json=heart)
-            result = r.json()
-            # print(result['status'])
-            print(result)
-            if result['status'] == 0:  # STATUS_ACK
-                self.__cost = result['cost']  # 更新面板金额
-                if result['wind']:  # 服务器同意送风
-                    if self.__mode == 0:  # 制冷模式
-                        self.__current = self.__current - self.__wind * 0.1
-                        print("当前温度为:%s" % self.__current)
-                    elif self.__mode == 1:  # 制热模式
-                        self.__current = self.__current + self.__wind * 0.1
-                else:
-                    print("空调不同意送风")
-                self.__GUI.lcdNumber_temperature_current.display(str(round(self.__current, 1)))
-                self.__GUI.label_fee_current.setText(str(0))
-                self.__GUI.label_fee_total.setText(str(self.__cost))
-
-            elif result['status'] == 1:  # STATUS_RST
-                print("重置空调状态")
-                __power = False  # 重置空调状态
-                __mode = 0
-                __target = 20.0
-                __current = 25.0
-                __wind = 1
-                __cost = "0"
+            try:
+                r = requests.post("http://localhost:8080/api/heartbeat", json=heart)
+            except (ConnectionError, ReadTimeout):
+                print('发送心跳包出现异常')
             else:
-                print("出错")
+                result = r.json()
+                # print(result['status'])
+                print(result)
+                if result['status'] == 0:  # STATUS_ACK
+                    self.__cost = result['cost']  # 更新面板金额
+                    if result['wind']:  # 服务器同意送风
+                        if self.__mode == 0:  # 制冷模式
+                            self.__current = self.__current - self.__wind * 0.1
+                            print("当前温度为:%s" % self.__current)
+                        elif self.__mode == 1:  # 制热模式
+                            self.__current = self.__current + self.__wind * 0.1
+                    else:
+                        print("空调不同意送风")
+                    self.__GUI.lcdNumber_temperature_current.display(str(round(self.__current, 1)))
+                    self.__GUI.label_fee_current.setText(str(0))
+                    self.__GUI.label_fee_total.setText(str(self.__cost))
+
+                elif result['status'] == 1:  # STATUS_RST
+                    print("重置空调状态")
+                    __power = False  # 重置空调状态
+                    __mode = 0
+                    __target = 20.0
+                    __current = 25.0
+                    __wind = 1
+                    __cost = "0"
+                else:
+                    print("出错")
             time.sleep(2)
 
     # 开机发送注册包
@@ -187,7 +192,11 @@ class AirConditioner:
         register = {
             'room': self.__room
         }
-        r = requests.post("http://localhost:8080/api/register", json=register)
+        try:
+            r = requests.post("http://localhost:8080/api/register", json=register)
+        except (ConnectionError, ReadTimeout):
+            print('发送注册数据包出现问题')
+            return
         print(r.text)
 
     def set_power(self, power):
