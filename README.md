@@ -14,3 +14,14 @@ import time
 ```
 
 要是有Anaconda这些库应该自动都有，没有anaconda的话pip install,配合Pycharm就可以运行。
+
+
+
+### 运行前得先打开服务器端，不然会卡
+
+
+
+### TODO:
+
+增加异常处理（0/1）
+
