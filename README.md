@@ -1,27 +1,15 @@
 # aircondition
 
-## 使用方法
+## TODO:
 
-下面是用到的库：
+- [x] 更改UI样式
+- [x] 增加异常处理
 
-```python
-from PyQt5 import QtCore, QtGui, QtWidgets
-from PyQt5.QtWidgets import QApplication
-import sys
-import requests
-import threading
-import time
-```
+- [x] 改进温度算法
+- [x] 更新API
+- [ ] 增加房间号和初始温度选择UI
+- [ ] 测试
 
-要是有Anaconda这些库应该自动都有，没有anaconda的话pip install,配合Pycharm就可以运行。
+ 
 
-
-
-### ~~运行前得先打开服务器端，不然会卡~~
-
-
-
-### TODO:
-
-- [x] 增加异常处理（1/1）
 
