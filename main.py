@@ -6,6 +6,7 @@ from requests import ConnectionError, ReadTimeout
 import threading
 import time
 import GUI_AirConditioner
+import MyMainWindow
 
 
 class AirConditioner:
@@ -13,7 +14,7 @@ class AirConditioner:
     dict_wind = {1: '低', 2: '中', 3: '高'}
 
     def __init__(self, room, current):
-        self.__init_temper = current # 房间初始温度
+        self.__init_temper = current  # 初始温度
         self.__room = room  # 房间号
         self.__power = False  # 空调是否打开
         self.__mode = 0  # 制冷制热
@@ -21,6 +22,7 @@ class AirConditioner:
         self.__current = current  # 当前温度
         self.__wind = 2  # 风力等级
         self.__cost = ""  # 花费
+
         self.__GUI = GUI_AirConditioner.Ui_Form()
         app = QApplication(sys.argv)
         MainWindow = QtWidgets.QMainWindow()
@@ -41,6 +43,7 @@ class AirConditioner:
         self.__GUI.pushButton_add_wind.clicked.connect(self.on_pushButton_add_wind_clicked)
         self.__GUI.pushButton_sub_wind.clicked.connect(self.on_pushButton_sub_wind_clicked)
         self.__GUI.pushButton_instruction_back.clicked.connect(self.on_pushButton_instruction_back_clicked)
+        self.__GUI.pushButton_exit.clicked.connect(self.on_pushButton_exit_clicked)
         self.__GUI.pushButton_ON_OFF.setEnabled(True)
         self.__GUI.pushButton_instruction.setEnabled(True)
         self.__GUI.pushButton_add_temperature.setEnabled(False)
@@ -53,27 +56,32 @@ class AirConditioner:
             self.set_power(False)
 
     def on_pushButton_ON_OFF_clicked(self):
-        self.__power = not self.__power
+        self.set_power(not self.get_power())
         if self.__power:
             self.__GUI.pushButton_ON_OFF.setText("关机")
             self.__GUI.pushButton_add_temperature.setEnabled(True)
+            self.__GUI.pushButton_add_temperature.setStyleSheet("background-color: #035aa6;QPushButton:hover{"
+                                                                "background-color:#fcf876;}")
             self.__GUI.pushButton_sub_temperature.setEnabled(True)
+            self.__GUI.pushButton_sub_temperature.setStyleSheet("background-color: #035aa6;QPushButton:hover{"
+                                                                "background-color:#fcf876;}")
             self.__GUI.pushButton_add_wind.setEnabled(True)
+            self.__GUI.pushButton_add_wind.setStyleSheet("background-color: #035aa6;QPushButton:hover{"
+                                                         "background-color:#fcf876;}")
             self.__GUI.pushButton_sub_wind.setEnabled(True)
-            # 开机注册
-            self.set_power(True)
-            # 创建线程发送心跳包
-            t_heartbeat = threading.Thread(target=self.heart_post, name='T_heart')
-            # 创建线程模拟空调工作
-            # t_work = threading.Thread(target=air.work, name='workT')
-            # t_work.start()
-            t_heartbeat.start()
-            print('thread %s.' % threading.current_thread().name)
+            self.__GUI.pushButton_sub_wind.setStyleSheet("background-color: #035aa6;QPushButton:hover{background"
+                                                         "-color:#fcf876;}")
+
+
         else:
             self.__GUI.pushButton_ON_OFF.setText("开机")
+            self.__GUI.pushButton_add_temperature.setStyleSheet("background-color: #43d8c9;")
             self.__GUI.pushButton_add_temperature.setEnabled(False)
+            self.__GUI.pushButton_sub_temperature.setStyleSheet("background-color: #43d8c9;")
             self.__GUI.pushButton_sub_temperature.setEnabled(False)
+            self.__GUI.pushButton_add_wind.setStyleSheet("background-color: #43d8c9;")
             self.__GUI.pushButton_add_wind.setEnabled(False)
+            self.__GUI.pushButton_sub_wind.setStyleSheet("background-color: #43d8c9;")
             self.__GUI.pushButton_sub_wind.setEnabled(False)
             # QtWidgets.QApplication.processEvents()  # 界面实时刷新
 
@@ -115,28 +123,11 @@ class AirConditioner:
     def on_pushButton_instruction_back_clicked(self):
         self.__GUI.stackedWidget.setCurrentIndex(0)
 
-    def closeEvent(self, event):
-        self.set_power(False)
-        print("重写成功")
 
-    # 模拟空调工作过程
-    def work(self):
-        while True:
-            if self.__power:  # 空调开机
-                if self.__mode == 0:  # 制冷模式
-                    self.__current = self.__current - self.fee(self.__wind)
-
-                elif self.__mode == 1:  # 制热模式
-                    self.__current = self.__current + self.fee(self.__wind)
-            else:
-                print("空调已关机")
-
-            time.sleep(1)
-            print('当前温度为 %s.' % self.__current)
 
     # 发送心跳包
     def heart_post(self):
-        while self.__power:
+        while self.__power:  # 仅在开机状态发送
             # 构造心跳包
             heart = {
                 'room': self.__room,
@@ -146,6 +137,8 @@ class AirConditioner:
                 'current': round(self.__current, 3),
                 'wind': self.__wind
             }
+            print('')
+            print("当前温度为:%s" % self.__current)
             print("发送的心跳包为")
             print(heart)
             try:
@@ -154,7 +147,6 @@ class AirConditioner:
                 print('发送心跳包出现异常')
             else:
                 result = r.json()
-                # print(result['status'])
                 print(result)
                 self.__cost = result['cost']  # 更新面板金额
                 if result['wind']:  # 服务器同意送风
@@ -169,13 +161,11 @@ class AirConditioner:
                         self.__current = self.__current + 0.25
                     else:
                         self.__current = self.__current - 0.25
-
+                print('预计30s后温度可以达到 %s' % self.get_current())
                 time.sleep(30)
-                print("当前温度为:%s" % self.__current)
                 self.__GUI.lcdNumber_temperature_current.display(str(round(self.__current, 1)))
                 self.__GUI.label_fee_current.setText(str(0))
                 self.__GUI.label_fee_total.setText(str(round(self.__cost, 2)))
-
 
     # 开机发送注册包
     def register_post(self):
@@ -200,9 +190,14 @@ class AirConditioner:
             return 1 / 2
 
     def set_power(self, power):
+        self.__power = power
         if power:  # 开机
             self.register_post()
-        self.__power = power
+            # 创建线程发送心跳包
+            t_heartbeat = threading.Thread(target=self.heart_post, name='T_heart')
+            t_heartbeat.start()
+        else:  # 关机,温度回到初始温度
+            self.set_current(self.__init_temper)
 
     def get_power(self):
         return self.__power
@@ -228,9 +223,18 @@ class AirConditioner:
     def get_current(self):
         return self.__current
 
+    def set_current(self, temper):
+        self.__current = temper
+
     def get_room(self):
         return self.__room
 
+    def on_pushButton_exit_clicked(self):
+        self.set_power(False)
+        print("关闭程序")
 
+
+roomid = input('请输入房间号')
+temper = input('请输入当前温度')
 # 创建空调对象
-air = AirConditioner('211344', 25.25)
+air = AirConditioner(roomid, float(temper))
