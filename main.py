@@ -13,12 +13,13 @@ class AirConditioner:
     dict_wind = {1: '低', 2: '中', 3: '高'}
 
     def __init__(self, room, current):
+        self.__init_temper = current # 房间初始温度
         self.__room = room  # 房间号
         self.__power = False  # 空调是否打开
         self.__mode = 0  # 制冷制热
-        self.__target = 23.0  # 目标温度
+        self.__target = 25.0  # 目标温度
         self.__current = current  # 当前温度
-        self.__wind = 1  # 风力等级
+        self.__wind = 2  # 风力等级
         self.__cost = ""  # 花费
         self.__GUI = GUI_AirConditioner.Ui_Form()
         app = QApplication(sys.argv)
@@ -123,15 +124,10 @@ class AirConditioner:
         while True:
             if self.__power:  # 空调开机
                 if self.__mode == 0:  # 制冷模式
-                    if self.__target < self.__current:  # 未达到目标温度
-                        self.__current = self.__current - self.__wind * 0.1
-                    else:
-                        self.set_power(False)  # 关机
+                    self.__current = self.__current - self.fee(self.__wind)
+
                 elif self.__mode == 1:  # 制热模式
-                    if self.__target > self.__current:  # 未达到目标温度
-                        self.__current = self.__current + self.__wind * 0.1
-                    else:
-                        self.set_power(False)  # 关机
+                    self.__current = self.__current + self.fee(self.__wind)
             else:
                 print("空调已关机")
 
@@ -147,44 +143,39 @@ class AirConditioner:
                 'power': self.__power,
                 'mode': self.__mode,
                 'target': self.__target,
-                'current': self.__current,
+                'current': round(self.__current, 3),
                 'wind': self.__wind
             }
             print("发送的心跳包为")
             print(heart)
             try:
-                r = requests.post("http://localhost:8080/api/heartbeat", json=heart)
+                r = requests.post("http://name1e5s.fun:3000/api/heartbeat", json=heart)
             except (ConnectionError, ReadTimeout):
                 print('发送心跳包出现异常')
             else:
                 result = r.json()
                 # print(result['status'])
                 print(result)
-                if result['status'] == 0:  # STATUS_ACK
-                    self.__cost = result['cost']  # 更新面板金额
-                    if result['wind']:  # 服务器同意送风
-                        if self.__mode == 0:  # 制冷模式
-                            self.__current = self.__current - self.__wind * 0.1
-                            print("当前温度为:%s" % self.__current)
-                        elif self.__mode == 1:  # 制热模式
-                            self.__current = self.__current + self.__wind * 0.1
-                    else:
-                        print("空调不同意送风")
-                    self.__GUI.lcdNumber_temperature_current.display(str(round(self.__current, 1)))
-                    self.__GUI.label_fee_current.setText(str(0))
-                    self.__GUI.label_fee_total.setText(str(self.__cost))
+                self.__cost = result['cost']  # 更新面板金额
+                if result['wind']:  # 服务器同意送风
+                    if self.__mode == 0:  # 制冷模式
+                        self.__current = self.__current - self.fee(self.__wind)
 
-                elif result['status'] == 1:  # STATUS_RST
-                    print("重置空调状态")
-                    __power = False  # 重置空调状态
-                    __mode = 0
-                    __target = 20.0
-                    __current = 25.0
-                    __wind = 1
-                    __cost = "0"
+                    elif self.__mode == 1:  # 制热模式
+                        self.__current = self.__current + self.fee(self.__wind)
                 else:
-                    print("出错")
-            time.sleep(2)
+                    print("空调不同意送风，进行回温")
+                    if self.__mode == 0:  # 制冷向上回温
+                        self.__current = self.__current + 0.25
+                    else:
+                        self.__current = self.__current - 0.25
+
+                time.sleep(30)
+                print("当前温度为:%s" % self.__current)
+                self.__GUI.lcdNumber_temperature_current.display(str(round(self.__current, 1)))
+                self.__GUI.label_fee_current.setText(str(0))
+                self.__GUI.label_fee_total.setText(str(round(self.__cost, 2)))
+
 
     # 开机发送注册包
     def register_post(self):
@@ -193,11 +184,20 @@ class AirConditioner:
             'room': self.__room
         }
         try:
-            r = requests.post("http://localhost:8080/api/register", json=register)
+            r = requests.post("http://name1e5s.fun:3000/api/register", json=register)
         except (ConnectionError, ReadTimeout):
             print('发送注册数据包出现问题')
             return
         print(r.text)
+
+    # 温度变化标准
+    def fee(self, w):
+        if w == 1:
+            return 1 / 6
+        elif w == 2:
+            return 1 / 4
+        else:
+            return 1 / 2
 
     def set_power(self, power):
         if power:  # 开机
@@ -233,4 +233,4 @@ class AirConditioner:
 
 
 # 创建空调对象
-air = AirConditioner('211308', 24.8)
+air = AirConditioner('211344', 25.25)
